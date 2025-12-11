@@ -1,0 +1,18 @@
+[Unit]
+Description=Radio Scheduler Web Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/radio_scheduler
+Environment="RADIO_SERVICE=azuracast-playout.service"
+Environment="PORT=86"
+ExecStart=/usr/bin/python3 /root/radio_scheduler/app.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

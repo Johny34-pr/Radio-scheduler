@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Rádió Ütemező v2.0</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 30px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+        }
+        
+        .status-panel {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .status-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+        
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-inactive {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status-unknown {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .control-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .btn-start {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-stop {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+            padding: 8px 16px;
+            font-size: 0.9em;
+        }
+        
+        .btn-edit {
+            background: #ffc107;
+            color: #333;
+            padding: 8px 16px;
+            font-size: 0.9em;
+        }
+        
+        .schedule-form {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        label {
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #333;
+            font-size: 0.9em;
+        }
+        
+        select, input[type="time"], input[type="text"] {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+        
+        select:focus, input[type="time"]:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .schedules-list {
+            margin-top: 20px;
+        }
+        
+        .schedule-item {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s;
+        }
+        
+        .schedule-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+        }
+        
+        .schedule-item.disabled {
+            opacity: 0.6;
+            background: #f8f9fa;
+        }
+        
+        .schedule-details {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        .day-badge {
+            background: #667eea;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 0.85em;
+            min-width: 80px;
+            text-align: center;
+        }
+        
+        .time-info {
+            display: flex;
+            gap: 10px;
+            font-size: 0.95em;
+        }
+        
+        .time-slot {
+            color: #666;
+        }
+        
+        .time-slot strong {
+            color: #333;
+        }
+        
+        .schedule-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 24px;
+            margin-right: 10px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #28a745;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 15px;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 Rádió Ütemező</h1>
+        <p class="subtitle">Systemd szolgáltatás automatikus indítása és leállítása órarend szerint</p>
+        
+        <!-- Státusz Panel -->
+        <div class="status-panel">
+            <div class="status-info">
+                <span style="font-weight: 500;">Szolgáltatás:</span>
+                <span id="serviceName">-</span>
+                <span id="statusBadge" class="status-badge status-unknown">Betöltés...</span>
+            </div>
+            <div class="control-buttons">
+                <button class="btn-start" onclick="startService()">▶ Indítás</button>
+                <button class="btn-stop" onclick="stopService()">⏹ Leállítás</button>
+            </div>
+        </div>
+        
+        <!-- Új órarend hozzáadása -->
+        <div class="schedule-form">
+            <h2 style="margin-bottom: 20px;">Új órarend hozzáadása</h2>
+            <form id="scheduleForm">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="scheduleName">Név:</label>
+                        <input type="text" id="scheduleName" placeholder="pl. Hétköznapi műsor" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="dayStart">Nap (kezdő):</label>
+                        <select id="dayStart" required>
+                            <option value="0">Hétfő</option>
+                            <option value="1">Kedd</option>
+                            <option value="2">Szerda</option>
+                            <option value="3">Csütörtök</option>
+                            <option value="4">Péntek</option>
+                            <option value="5">Szombat</option>
+                            <option value="6">Vasárnap</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="dayEnd">Nap (vég):</label>
+                        <select id="dayEnd" required>
+                            <option value="0">Hétfő</option>
+                            <option value="1">Kedd</option>
+                            <option value="2">Szerda</option>
+                            <option value="3">Csütörtök</option>
+                            <option value="4">Péntek</option>
+                            <option value="5">Szombat</option>
+                            <option value="6">Vasárnap</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="startTime">Indítás:</label>
+                        <input type="time" id="startTime" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="stopTime">Leállítás:</label>
+                        <input type="time" id="stopTime" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn-primary">➕ Órarend hozzáadása</button>
+            </form>
+        </div>
+        
+        <!-- Órarend lista -->
+        <div class="schedules-list">
+            <h2 style="margin-bottom: 15px;">Beállított órarendek</h2>
+            <div id="schedulesList"></div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = '';
+        const DAYS = ['Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat', 'Vasárnap'];
+        
+        // Nap範围 formázása
+        function getDayRange(start, end) {
+            if (start === end) {
+                return DAYS[start];
+            }
+            return `${DAYS[start]} - ${DAYS[end]}`;
+        }
+        
+        // Státusz frissítése
+        async function updateStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/api/service/status`);
+                const data = await response.json();
+                
+                document.getElementById('serviceName').textContent = data.service;
+                const badge = document.getElementById('statusBadge');
+                
+                badge.classList.remove('status-active', 'status-inactive', 'status-unknown');
+                
+                if (data.status === 'active') {
+                    badge.textContent = '🟢 Aktív';
+                    badge.classList.add('status-active');
+                } else if (data.status === 'inactive') {
+                    badge.textContent = '🔴 Inaktív';
+                    badge.classList.add('status-inactive');
+                } else {
+                    badge.textContent = '⚪ Ismeretlen';
+                    badge.classList.add('status-unknown');
+                }
+            } catch (error) {
+                console.error('Error updating status:', error);
+            }
+        }
+        
+        // Szolgáltatás indítása
+        async function startService() {
+            try {
+                await fetch(`${API_BASE}/api/service/start`, { method: 'POST' });
+                await updateStatus();
+            } catch (error) {
+                alert('Hiba a szolgáltatás indításakor: ' + error.message);
+            }
+        }
+        
+        // Szolgáltatás leállítása
+        async function stopService() {
+            try {
+                await fetch(`${API_BASE}/api/service/stop`, { method: 'POST' });
+                await updateStatus();
+            } catch (error) {
+                alert('Hiba a szolgáltatás leállításakor: ' + error.message);
+            }
+        }
+        
+        // Órarendek betöltése
+        async function loadSchedules() {
+            try {
+                const response = await fetch(`${API_BASE}/api/schedules`);
+                const schedules = await response.json();
+                
+                const container = document.getElementById('schedulesList');
+                
+                if (schedules.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div style="font-size: 48px;">📅</div>
+                            <p>Még nincsenek beállított órarendek</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                container.innerHTML = schedules.map(s => `
+                    <div class="schedule-item ${s.enabled ? '' : 'disabled'}">
+                        <div class="schedule-details">
+                            <div class="day-badge">${s.name || getDayRange(s.day_start, s.day_end)}</div>
+                            <div class="time-info">
+                                <span class="time-slot"><strong>Napok:</strong> ${getDayRange(s.day_start, s.day_end)}</span>
+                                <span class="time-slot"><strong>Indítás:</strong> ${s.start_time}</span>
+                                <span class="time-slot"><strong>Leállítás:</strong> ${s.stop_time}</span>
+                            </div>
+                        </div>
+                        <div class="schedule-actions">
+                            <label class="toggle-switch">
+                                <input type="checkbox" ${s.enabled ? 'checked' : ''} 
+                                       onchange="toggleSchedule(${s.id}, this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                            <button class="btn-danger" onclick="deleteSchedule(${s.id})">🗑️ Törlés</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading schedules:', error);
+            }
+        }
+        
+        // Órarend hozzáadása
+        document.getElementById('scheduleForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const dayStart = parseInt(document.getElementById('dayStart').value);
+            const dayEnd = parseInt(document.getElementById('dayEnd').value);
+            
+            // Ellenőrzés: day_end >= day_start
+            if (dayEnd < dayStart) {
+                alert('A vég napnak később vagy ugyanakkornak kell lennie, mint a kezdő nap!');
+                return;
+            }
+            
+            const data = {
+                name: document.getElementById('scheduleName').value,
+                day_start: dayStart,
+                day_end: dayEnd,
+                start_time: document.getElementById('startTime').value,
+                stop_time: document.getElementById('stopTime').value,
+                enabled: 1
+            };
+            
+            try {
+                await fetch(`${API_BASE}/api/schedules`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                e.target.reset();
+                await loadSchedules();
+            } catch (error) {
+                alert('Hiba az órarend hozzáadásakor: ' + error.message);
+            }
+        });
+        
+        // Órarend engedélyezése/letiltása
+        async function toggleSchedule(id, enabled) {
+            try {
+                const response = await fetch(`${API_BASE}/api/schedules/${id}`);
+                const schedule = await response.json();
+                
+                await fetch(`${API_BASE}/api/schedules/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: schedule.name,
+                        day_start: schedule.day_start,
+                        day_end: schedule.day_end,
+                        start_time: schedule.start_time,
+                        stop_time: schedule.stop_time,
+                        enabled: enabled ? 1 : 0
+                    })
+                });
+                
+                await loadSchedules();
+            } catch (error) {
+                alert('Hiba az órarend módosításakor: ' + error.message);
+            }
+        }
+        
+        // Órarend törlése
+        async function deleteSchedule(id) {
+            if (!confirm('Biztosan törölni szeretnéd ezt az órarendet?')) {
+                return;
+            }
+            
+            try {
+                await fetch(`${API_BASE}/api/schedules/${id}`, { method: 'DELETE' });
+                await loadSchedules();
+            } catch (error) {
+                alert('Hiba az órarend törlésekor: ' + error.message);
+            }
+        }
+        
+        // Inicializálás
+        updateStatus();
+        loadSchedules();
+        
+        // Nap választó szinkronizálás (ha ugyanaz van választva mindkettőben)
+        document.getElementById('dayStart').addEventListener('change', function() {
+            const dayEnd = document.getElementById('dayEnd');
+            if (parseInt(dayEnd.value) < parseInt(this.value)) {
+                dayEnd.value = this.value;
+            }
+        });
+        
+        // Státusz automatikus frissítése 10 másodpercenként
+        setInterval(updateStatus, 10000);
+    </script>
+</body>
+</html>
