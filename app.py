@@ -8,6 +8,7 @@ import schedule
 import time as time_module
 import os
 import sys
+import requests
 
 app = Flask(__name__)
 CORS(app)
@@ -36,6 +37,26 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    
+    # Beállítások tábla (stream URL, AzuraCast API stb.)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+    ''')
+    
+    # Alapértelmezett beállítások
+    default_settings = {
+        'stream_url': 'http://10.204.131.131:8000/radio.mp3',
+        'azuracast_api_url': 'http://10.204.131.131',
+        'azuracast_station_id': '1',
+        'azuracast_api_key': '',
+        'control_azuracast': '0'  # 0 = csak mpv, 1 = mpv + AzuraCast szüneteltetés/folytatás
+    }
+    
+    for key, value in default_settings.items():
+        c.execute('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', (key, value))
     
     # Régi tábla migrálása, ha létezik
     try:
@@ -83,9 +104,82 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
+def get_setting(key, default=''):
+    """Beállítás lekérdezése"""
+    conn = get_db()
+    result = conn.execute('SELECT value FROM settings WHERE key = ?', (key,)).fetchone()
+    conn.close()
+    return result['value'] if result else default
+
+def set_setting(key, value):
+    """Beállítás mentése"""
+    conn = get_db()
+    conn.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', (key, value))
+    conn.commit()
+    conn.close()
+
+def azuracast_control(action):
+    """AzuraCast backend és frontend vezérlése supervisorctl-lel"""
+    control_enabled = get_setting('control_azuracast', '0') == '1'
+    
+    print(f"[{datetime.now()}] AzuraCast control called: action={action}, enabled={control_enabled}")
+    
+    if not control_enabled:
+        print(f"[{datetime.now()}] AzuraCast control disabled, skipping")
+        return True
+    
+    station_id = get_setting('azuracast_station_id', '1')
+    
+    try:
+        if action == 'start':
+            # Backend indítása
+            subprocess.run(['sudo', 'docker', 'exec', 'azuracast', 'supervisorctl', 'start', 
+                f'station_{station_id}:station_{station_id}_backend'], 
+                capture_output=True, text=True, timeout=30)
+            print(f"[{datetime.now()}] Backend started")
+            
+            time_module.sleep(2)
+            
+            # Frontend indítása
+            subprocess.run(['sudo', 'docker', 'exec', 'azuracast', 'supervisorctl', 'start', 
+                f'station_{station_id}:station_{station_id}_frontend'], 
+                capture_output=True, text=True, timeout=30)
+            print(f"[{datetime.now()}] Frontend started")
+            
+            print(f"[{datetime.now()}] ✅ AzuraCast station started")
+            return True
+        
+        elif action == 'stop':
+            # Frontend leállítása
+            subprocess.run(['sudo', 'docker', 'exec', 'azuracast', 'supervisorctl', 'stop', 
+                f'station_{station_id}:station_{station_id}_frontend'], 
+                capture_output=True, text=True, timeout=30)
+            print(f"[{datetime.now()}] Frontend stopped")
+            
+            # Backend leállítása
+            subprocess.run(['sudo', 'docker', 'exec', 'azuracast', 'supervisorctl', 'stop', 
+                f'station_{station_id}:station_{station_id}_backend'], 
+                capture_output=True, text=True, timeout=30)
+            print(f"[{datetime.now()}] Backend stopped")
+            
+            print(f"[{datetime.now()}] ✅ AzuraCast station stopped")
+            return True
+    
+    except Exception as e:
+        print(f"[{datetime.now()}] ❌ AzuraCast control error: {type(e).__name__}: {e}")
+        return False
+    
+    return True
+
 def systemd_start():
     """Systemd szolgáltatás indítása"""
     try:
+        # AzuraCast backend indítása (ha engedélyezve)
+        azuracast_control('start')
+        
+        # Service environment frissítése az aktuális stream URL-lel
+        update_service_environment()
+        
         # Sudo használata ha nem root user
         cmd = ['systemctl', 'start', SYSTEMD_SERVICE]
         if os.geteuid() != 0:
@@ -121,6 +215,10 @@ def systemd_stop():
             check=True
         )
         print(f"[{datetime.now()}] Service stopped: {SYSTEMD_SERVICE}")
+        
+        # AzuraCast backend leállítása (ha engedélyezve)
+        azuracast_control('stop')
+        
         return True
     except subprocess.CalledProcessError as e:
         print(f"[{datetime.now()}] Error stopping service: {e.stderr}")
@@ -128,6 +226,40 @@ def systemd_stop():
     except (FileNotFoundError, AttributeError):
         print(f"[{datetime.now()}] systemctl not found (Windows?), simulating stop")
         return True
+
+def update_service_environment():
+    """Service environment változók frissítése az aktuális beállításokkal"""
+    try:
+        stream_url = get_setting('stream_url', 'http://10.204.131.131:8000/radio.mp3')
+        service_file = f'/etc/systemd/system/{SYSTEMD_SERVICE}'
+        
+        # Ellenőrizzük, hogy a service file létezik-e
+        check_cmd = ['test', '-f', service_file]
+        if os.geteuid() != 0:
+            check_cmd = ['sudo'] + check_cmd
+        
+        result = subprocess.run(check_cmd, capture_output=True)
+        if result.returncode != 0:
+            print(f"[{datetime.now()}] Service file not found, skipping environment update")
+            return
+        
+        # Systemd environment override directory
+        override_dir = f'/etc/systemd/system/{SYSTEMD_SERVICE}.d'
+        override_file = f'{override_dir}/override.conf'
+        
+        # Override konfig létrehozása
+        override_content = f"""[Service]
+Environment="STREAM_URL={stream_url}"
+"""
+        
+        # Könyvtár létrehozása és fájl írása
+        cmd = f'mkdir -p {override_dir} && echo "{override_content}" | sudo tee {override_file} > /dev/null && sudo systemctl daemon-reload'
+        
+        subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+        print(f"[{datetime.now()}] Service environment updated: STREAM_URL={stream_url}")
+        
+    except Exception as e:
+        print(f"[{datetime.now()}] Error updating service environment: {e}")
 
 def systemd_status():
     """Systemd szolgáltatás állapotának lekérdezése"""
@@ -244,6 +376,74 @@ def service_stop():
     """Szolgáltatás manuális leállítása"""
     success = systemd_stop()
     return jsonify({'success': success, 'status': systemd_status()})
+
+@app.route('/api/settings', methods=['GET'])
+def get_settings():
+    """Összes beállítás lekérdezése"""
+    conn = get_db()
+    settings = conn.execute('SELECT * FROM settings').fetchall()
+    conn.close()
+    return jsonify({s['key']: s['value'] for s in settings})
+
+@app.route('/api/settings', methods=['POST'])
+def update_settings():
+    """Beállítások frissítése"""
+    data = request.json
+    
+    for key, value in data.items():
+        set_setting(key, str(value))
+    
+    # Ha stream_url változott és a service fut, újraindítjuk
+    if 'stream_url' in data and systemd_status() == 'active':
+        update_service_environment()
+        systemd_stop()
+        time_module.sleep(1)
+        systemd_start()
+    
+    return jsonify({'message': 'Settings updated'})
+
+@app.route('/api/azuracast/test', methods=['POST'])
+def test_azuracast():
+    """AzuraCast API tesztelése"""
+    control_enabled = get_setting('control_azuracast', '0') == '1'
+    
+    if not control_enabled:
+        return jsonify({'success': False, 'message': 'AzuraCast vezérlés nincs engedélyezve'}), 400
+    
+    api_url = get_setting('azuracast_api_url')
+    station_id = get_setting('azuracast_station_id')
+    api_key = get_setting('azuracast_api_key')
+    
+    if not api_url or not api_key:
+        return jsonify({'success': False, 'message': 'Hiányoznak az API beállítások'}), 400
+    
+    try:
+        # Station status lekérdezése
+        headers = {'X-API-Key': api_key}
+        url = f"{api_url}/api/station/{station_id}"
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        return jsonify({
+            'success': True,
+            'message': 'API kapcsolat sikeres',
+            'station_name': data.get('name', 'N/A'),
+            'backend_running': data.get('backend_running', False),
+            'is_public': data.get('is_public', False)
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False,
+            'message': f'API hiba: {type(e).__name__}: {str(e)}'
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Váratlan hiba: {type(e).__name__}: {str(e)}'
+        }), 500
 
 # Scheduler logika
 def setup_scheduler():

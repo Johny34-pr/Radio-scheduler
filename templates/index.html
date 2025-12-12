@@ -353,6 +353,42 @@
             </form>
         </div>
         
+        <!-- Beállítások -->
+        <div class="schedule-form">
+            <h2 style="margin-bottom: 20px;">⚙️ Beállítások</h2>
+            <form id="settingsForm">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="streamUrl">Stream URL:</label>
+                        <input type="text" id="streamUrl" placeholder="http://10.204.131.131:8000/radio.mp3" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="azuracastApiUrl">AzuraCast API URL:</label>
+                        <input type="text" id="azuracastApiUrl" placeholder="http://10.204.131.131">
+                    </div>
+                    <div class="form-group">
+                        <label for="azuracastStationId">Station ID:</label>
+                        <input type="text" id="azuracastStationId" placeholder="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="azuracastApiKey">API Key:</label>
+                        <input type="password" id="azuracastApiKey" placeholder="API kulcs (opcionális)">
+                    </div>
+                    <div class="form-group">
+                        <label for="controlAzuracast" style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="controlAzuracast" style="width: auto; margin: 0;">
+                            AzuraCast szüneteltetése/folytatása
+                        </label>
+                        <small style="color: #666; font-size: 0.85em;">Ha be van jelölve, az AzuraCast backend is leáll/indul az mpv-vel együtt</small>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button type="submit" class="btn-primary">💾 Beállítások mentése</button>
+                    <button type="button" class="btn-edit" onclick="testAzuraCast()">🧪 AzuraCast API teszt</button>
+                </div>
+            </form>
+        </div>
+        
         <!-- Órarend lista -->
         <div class="schedules-list">
             <h2 style="margin-bottom: 15px;">Beállított órarendek</h2>
@@ -536,9 +572,70 @@
             }
         }
         
+        // Beállítások betöltése
+        async function loadSettings() {
+            try {
+                const response = await fetch(`${API_BASE}/api/settings`);
+                const settings = await response.json();
+                
+                document.getElementById('streamUrl').value = settings.stream_url || '';
+                document.getElementById('azuracastApiUrl').value = settings.azuracast_api_url || '';
+                document.getElementById('azuracastStationId').value = settings.azuracast_station_id || '';
+                document.getElementById('azuracastApiKey').value = settings.azuracast_api_key || '';
+                document.getElementById('controlAzuracast').checked = settings.control_azuracast === '1';
+            } catch (error) {
+                console.error('Error loading settings:', error);
+            }
+        }
+        
+        // Beállítások mentése
+        document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const data = {
+                stream_url: document.getElementById('streamUrl').value,
+                azuracast_api_url: document.getElementById('azuracastApiUrl').value,
+                azuracast_station_id: document.getElementById('azuracastStationId').value,
+                azuracast_api_key: document.getElementById('azuracastApiKey').value,
+                control_azuracast: document.getElementById('controlAzuracast').checked ? '1' : '0'
+            };
+            
+            try {
+                await fetch(`${API_BASE}/api/settings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                alert('✅ Beállítások mentve! Ha a stream URL változott és a szolgáltatás fut, automatikusan újraindul.');
+            } catch (error) {
+                alert('Hiba a beállítások mentésekor: ' + error.message);
+            }
+        });
+        
+        // AzuraCast API teszt
+        async function testAzuraCast() {
+            try {
+                const response = await fetch(`${API_BASE}/api/azuracast/test`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ API teszt sikeres!\n\nÁllomás: ${result.station_name}\nBackend fut: ${result.backend_running ? 'Igen' : 'Nem'}\nNyilvános: ${result.is_public ? 'Igen' : 'Nem'}`);
+                } else {
+                    alert(`❌ API teszt sikertelen!\n\n${result.message}`);
+                }
+            } catch (error) {
+                alert(`❌ API teszt hiba:\n\n${error.message}`);
+            }
+        }
+        
         // Inicializálás
         updateStatus();
         loadSchedules();
+        loadSettings();
         
         // Nap választó szinkronizálás (ha ugyanaz van választva mindkettőben)
         document.getElementById('dayStart').addEventListener('change', function() {
