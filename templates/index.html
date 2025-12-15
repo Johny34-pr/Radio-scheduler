@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Rádió Ütemező v2.0</title>
+    <title>Sulirádió Ütemező v3.0</title>
     <style>
         * {
             margin: 0;
@@ -36,26 +36,39 @@
             font-size: 2em;
         }
         
+        h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
         .subtitle {
             color: #666;
             margin-bottom: 30px;
             font-size: 0.9em;
         }
         
+        /* Státusz Panel */
         .status-panel {
             background: #f8f9fa;
             border-radius: 10px;
             padding: 20px;
             margin-bottom: 30px;
+        }
+        
+        .status-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
         }
         
         .status-info {
             display: flex;
             align-items: center;
             gap: 15px;
+            flex-wrap: wrap;
         }
         
         .status-badge {
@@ -80,11 +93,20 @@
             color: #856404;
         }
         
+        .now-playing {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+        
         .control-buttons {
             display: flex;
             gap: 10px;
         }
         
+        /* Gombok */
         button {
             padding: 10px 20px;
             border: none;
@@ -98,6 +120,12 @@
         button:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
         }
         
         .btn-start {
@@ -122,14 +150,101 @@
             font-size: 0.9em;
         }
         
-        .btn-edit {
-            background: #ffc107;
-            color: #333;
-            padding: 8px 16px;
-            font-size: 0.9em;
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 0.85em;
         }
         
-        .schedule-form {
+        /* Rádió lista */
+        .radio-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .radio-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .radio-card {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+        
+        .radio-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+        
+        .radio-card.active {
+            border-color: #28a745;
+            background: #f0fff4;
+        }
+        
+        .radio-card.active::before {
+            content: '▶';
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #28a745;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+        
+        .radio-name {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        
+        .radio-url {
+            font-size: 0.8em;
+            color: #666;
+            word-break: break-all;
+        }
+        
+        .radio-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.75em;
+            margin-top: 8px;
+        }
+        
+        .badge-azuracast {
+            background: #e8f4fd;
+            color: #0066cc;
+        }
+        
+        .badge-online {
+            background: #fff3e0;
+            color: #e65100;
+        }
+        
+        .radio-actions {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        
+        /* Form stílusok */
+        .form-section {
             background: #f8f9fa;
             border-radius: 10px;
             padding: 20px;
@@ -155,7 +270,7 @@
             font-size: 0.9em;
         }
         
-        select, input[type="time"], input[type="text"] {
+        select, input[type="time"], input[type="text"], input[type="password"] {
             padding: 10px;
             border: 2px solid #ddd;
             border-radius: 6px;
@@ -163,15 +278,23 @@
             transition: border-color 0.3s;
         }
         
-        select:focus, input[type="time"]:focus, input[type="text"]:focus {
+        select:focus, input:focus {
             outline: none;
             border-color: #667eea;
         }
         
-        .schedules-list {
-            margin-top: 20px;
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+        }
+        
+        /* Órarend lista */
         .schedule-item {
             background: white;
             border: 2px solid #e9ecef;
@@ -186,7 +309,6 @@
         
         .schedule-item:hover {
             border-color: #667eea;
-            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
         }
         
         .schedule-item.disabled {
@@ -198,6 +320,7 @@
             display: flex;
             gap: 20px;
             align-items: center;
+            flex-wrap: wrap;
         }
         
         .day-badge {
@@ -207,14 +330,13 @@
             border-radius: 6px;
             font-weight: bold;
             font-size: 0.85em;
-            min-width: 80px;
-            text-align: center;
         }
         
         .time-info {
             display: flex;
             gap: 10px;
             font-size: 0.95em;
+            flex-wrap: wrap;
         }
         
         .time-slot {
@@ -228,13 +350,14 @@
         .schedule-actions {
             display: flex;
             gap: 8px;
+            align-items: center;
         }
         
+        /* Toggle kapcsoló */
         .toggle-switch {
             position: relative;
             width: 50px;
             height: 24px;
-            margin-right: 10px;
         }
         
         .toggle-switch input {
@@ -281,118 +404,320 @@
             color: #999;
         }
         
-        .empty-state svg {
-            width: 80px;
-            height: 80px;
-            margin-bottom: 15px;
-            opacity: 0.3;
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.show {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #666;
+        }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #e9ecef;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1em;
+            color: #666;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.3s;
+        }
+        
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Hangfájl lista */
+        .audio-item {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .audio-item:hover {
+            border-color: #667eea;
+        }
+        
+        .audio-info {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .audio-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 4px;
+        }
+        
+        .audio-meta {
+            font-size: 0.85em;
+            color: #666;
+        }
+        
+        .audio-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .btn-play {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-preview {
+            background: #17a2b8;
+            color: white;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🎵 Rádió Ütemező</h1>
-        <p class="subtitle">Systemd szolgáltatás automatikus indítása és leállítása órarend szerint</p>
+        <h1>📻 Sulirádió Ütemező</h1>
+        <p class="subtitle">Online rádiók és helyi AzuraCast stream időzített lejátszása</p>
         
         <!-- Státusz Panel -->
         <div class="status-panel">
-            <div class="status-info">
-                <span style="font-weight: 500;">Szolgáltatás:</span>
-                <span id="serviceName">-</span>
-                <span id="statusBadge" class="status-badge status-unknown">Betöltés...</span>
+            <div class="status-row">
+                <div class="status-info">
+                    <span id="statusBadge" class="status-badge status-unknown">Betöltés...</span>
+                    <span id="nowPlaying" class="now-playing" style="display: none;">-</span>
+                </div>
+                <div class="control-buttons">
+                    <button class="btn-start" onclick="startService()">▶ Lejátszás</button>
+                    <button class="btn-stop" onclick="stopService()">⏹ Leállítás</button>
+                </div>
             </div>
-            <div class="control-buttons">
-                <button class="btn-start" onclick="startService()">▶ Indítás</button>
-                <button class="btn-stop" onclick="stopService()">⏹ Leállítás</button>
+        </div>
+        
+        <!-- Tabok -->
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('radios')">📻 Rádió állomások</button>
+            <button class="tab" onclick="showTab('audio')">🎵 Hangfájlok</button>
+            <button class="tab" onclick="showTab('schedules')">📅 Órarendek</button>
+            <button class="tab" onclick="showTab('settings')">⚙️ Beállítások</button>
+        </div>
+        
+        <!-- Rádió állomások tab -->
+        <div id="tab-radios" class="tab-content active">
+            <div class="radio-section">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2>Válassz rádió állomást</h2>
+                    <button class="btn-primary btn-small" onclick="showAddRadioModal()">➕ Új rádió</button>
+                </div>
+                <div id="radioGrid" class="radio-grid">
+                    <!-- Dinamikusan töltődik -->
+                </div>
             </div>
         </div>
         
-        <!-- Új órarend hozzáadása -->
-        <div class="schedule-form">
-            <h2 style="margin-bottom: 20px;">Új órarend hozzáadása</h2>
-            <form id="scheduleForm">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label for="scheduleName">Név:</label>
-                        <input type="text" id="scheduleName" placeholder="pl. Hétköznapi műsor" required>
+        <!-- Hangfájlok tab -->
+        <div id="tab-audio" class="tab-content">
+            <div class="form-section">
+                <h2>🎵 Hangfájl feltöltése</h2>
+                <p style="color: #666; margin-bottom: 15px; font-size: 0.9em;">
+                    Tölts fel saját hangfájlokat (mp3, wav, ogg, flac, m4a) különleges alkalmakra, pl. csengőhangok, bejelentések.
+                </p>
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <input type="file" id="audioFile" accept=".mp3,.wav,.ogg,.flac,.m4a,.aac" required 
+                               style="flex: 1; min-width: 200px;">
+                        <button type="submit" class="btn-primary">📤 Feltöltés</button>
                     </div>
-                    <div class="form-group">
-                        <label for="dayStart">Nap (kezdő):</label>
-                        <select id="dayStart" required>
-                            <option value="0">Hétfő</option>
-                            <option value="1">Kedd</option>
-                            <option value="2">Szerda</option>
-                            <option value="3">Csütörtök</option>
-                            <option value="4">Péntek</option>
-                            <option value="5">Szombat</option>
-                            <option value="6">Vasárnap</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="dayEnd">Nap (vég):</label>
-                        <select id="dayEnd" required>
-                            <option value="0">Hétfő</option>
-                            <option value="1">Kedd</option>
-                            <option value="2">Szerda</option>
-                            <option value="3">Csütörtök</option>
-                            <option value="4">Péntek</option>
-                            <option value="5">Szombat</option>
-                            <option value="6">Vasárnap</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="startTime">Indítás:</label>
-                        <input type="time" id="startTime" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="stopTime">Leállítás:</label>
-                        <input type="time" id="stopTime" required>
+                </form>
+                <div id="uploadProgress" style="margin-top: 10px; display: none;">
+                    <div style="background: #e9ecef; border-radius: 10px; overflow: hidden;">
+                        <div id="progressBar" style="background: #667eea; height: 8px; width: 0%; transition: width 0.3s;"></div>
                     </div>
                 </div>
-                <button type="submit" class="btn-primary">➕ Órarend hozzáadása</button>
-            </form>
+            </div>
+            
+            <div class="form-section">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2>Feltöltött hangfájlok</h2>
+                    <button class="btn-stop btn-small" onclick="stopAudio()">⏹ Minden leállítása</button>
+                </div>
+                <div id="audioFilesList">
+                    <!-- Dinamikusan töltődik -->
+                </div>
+            </div>
         </div>
         
-        <!-- Beállítások -->
-        <div class="schedule-form">
-            <h2 style="margin-bottom: 20px;">⚙️ Beállítások</h2>
-            <form id="settingsForm">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label for="streamUrl">Stream URL:</label>
-                        <input type="text" id="streamUrl" placeholder="http://10.204.131.131:8000/radio.mp3" required>
+        <!-- Órarendek tab -->
+        <div id="tab-schedules" class="tab-content">
+            <div class="form-section">
+                <h2>Új órarend hozzáadása</h2>
+                <form id="scheduleForm">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="scheduleName">Név:</label>
+                            <input type="text" id="scheduleName" placeholder="pl. Hétköznapi műsor" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="dayStart">Nap (kezdő):</label>
+                            <select id="dayStart" required>
+                                <option value="0">Hétfő</option>
+                                <option value="1">Kedd</option>
+                                <option value="2">Szerda</option>
+                                <option value="3">Csütörtök</option>
+                                <option value="4">Péntek</option>
+                                <option value="5">Szombat</option>
+                                <option value="6">Vasárnap</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="dayEnd">Nap (vég):</label>
+                            <select id="dayEnd" required>
+                                <option value="0">Hétfő</option>
+                                <option value="1">Kedd</option>
+                                <option value="2">Szerda</option>
+                                <option value="3">Csütörtök</option>
+                                <option value="4">Péntek</option>
+                                <option value="5">Szombat</option>
+                                <option value="6">Vasárnap</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="startTime">Indítás:</label>
+                            <input type="time" id="startTime" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="stopTime">Leállítás:</label>
+                            <input type="time" id="stopTime" required>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="azuracastApiUrl">AzuraCast API URL:</label>
-                        <input type="text" id="azuracastApiUrl" placeholder="http://10.204.131.131">
-                    </div>
-                    <div class="form-group">
-                        <label for="azuracastStationId">Station ID:</label>
-                        <input type="text" id="azuracastStationId" placeholder="1">
-                    </div>
-                    <div class="form-group">
-                        <label for="azuracastApiKey">API Key:</label>
-                        <input type="password" id="azuracastApiKey" placeholder="API kulcs (opcionális)">
-                    </div>
-                    <div class="form-group">
-                        <label for="controlAzuracast" style="display: flex; align-items: center; gap: 10px;">
-                            <input type="checkbox" id="controlAzuracast" style="width: auto; margin: 0;">
-                            AzuraCast szüneteltetése/folytatása
-                        </label>
-                        <small style="color: #666; font-size: 0.85em;">Ha be van jelölve, az AzuraCast backend is leáll/indul az mpv-vel együtt</small>
-                    </div>
-                </div>
-                <div style="display: flex; gap: 10px; align-items: center;">
-                    <button type="submit" class="btn-primary">💾 Beállítások mentése</button>
-                    <button type="button" class="btn-edit" onclick="testAzuraCast()">🧪 AzuraCast API teszt</button>
-                </div>
-            </form>
+                    <button type="submit" class="btn-primary">➕ Órarend hozzáadása</button>
+                </form>
+            </div>
+            
+            <div class="schedules-list">
+                <h2>Beállított órarendek</h2>
+                <div id="schedulesList"></div>
+            </div>
         </div>
         
-        <!-- Órarend lista -->
-        <div class="schedules-list">
-            <h2 style="margin-bottom: 15px;">Beállított órarendek</h2>
-            <div id="schedulesList"></div>
+        <!-- Beállítások tab -->
+        <div id="tab-settings" class="tab-content">
+            <div class="form-section">
+                <h2>AzuraCast beállítások</h2>
+                <form id="settingsForm">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="azuracastApiUrl">AzuraCast API URL:</label>
+                            <input type="text" id="azuracastApiUrl" placeholder="http://10.204.131.131">
+                        </div>
+                        <div class="form-group">
+                            <label for="azuracastApiKey">API Key:</label>
+                            <input type="password" id="azuracastApiKey" placeholder="API kulcs (opcionális)">
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="controlAzuracast">
+                            <label for="controlAzuracast" style="margin: 0;">AzuraCast backend vezérlése</label>
+                        </div>
+                        <small style="color: #666; margin-left: 28px;">Ha be van jelölve, az AzuraCast backend is leáll/indul a lejátszóval együtt</small>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button type="submit" class="btn-primary">💾 Mentés</button>
+                        <button type="button" class="btn-primary" style="background: #17a2b8;" onclick="testAzuraCast()">🧪 API teszt</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Új rádió modal -->
+    <div id="radioModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Új rádió hozzáadása</h2>
+                <button class="modal-close" onclick="closeRadioModal()">&times;</button>
+            </div>
+            <form id="radioForm">
+                <input type="hidden" id="radioId">
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label for="radioName">Rádió neve:</label>
+                    <input type="text" id="radioName" placeholder="pl. Petőfi Rádió" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label for="radioUrl">Stream URL:</label>
+                    <input type="text" id="radioUrl" placeholder="https://..." required>
+                </div>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="radioIsAzuracast" onchange="toggleAzuracastFields()">
+                        <label for="radioIsAzuracast" style="margin: 0;">Ez egy helyi AzuraCast stream</label>
+                    </div>
+                </div>
+                <div id="azuracastFields" class="form-group" style="margin-bottom: 15px; display: none;">
+                    <label for="radioStationId">AzuraCast Station ID:</label>
+                    <input type="text" id="radioStationId" placeholder="1">
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button type="button" class="btn-danger" onclick="closeRadioModal()">Mégse</button>
+                    <button type="submit" class="btn-primary">💾 Mentés</button>
+                </div>
+            </form>
         </div>
     </div>
     
@@ -400,12 +725,13 @@
         const API_BASE = '';
         const DAYS = ['Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat', 'Vasárnap'];
         
-        // Nap範围 formázása
-        function getDayRange(start, end) {
-            if (start === end) {
-                return DAYS[start];
-            }
-            return `${DAYS[start]} - ${DAYS[end]}`;
+        // Tab váltás
+        function showTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            
+            document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
         }
         
         // Státusz frissítése
@@ -414,27 +740,159 @@
                 const response = await fetch(`${API_BASE}/api/service/status`);
                 const data = await response.json();
                 
-                document.getElementById('serviceName').textContent = data.service;
                 const badge = document.getElementById('statusBadge');
+                const nowPlaying = document.getElementById('nowPlaying');
                 
                 badge.classList.remove('status-active', 'status-inactive', 'status-unknown');
                 
                 if (data.status === 'active') {
-                    badge.textContent = '🟢 Aktív';
+                    badge.textContent = '🟢 Lejátszás folyamatban';
                     badge.classList.add('status-active');
                 } else if (data.status === 'inactive') {
-                    badge.textContent = '🔴 Inaktív';
+                    badge.textContent = '🔴 Leállítva';
                     badge.classList.add('status-inactive');
                 } else {
                     badge.textContent = '⚪ Ismeretlen';
                     badge.classList.add('status-unknown');
+                }
+                
+                if (data.active_radio) {
+                    nowPlaying.textContent = `📻 ${data.active_radio.name}`;
+                    nowPlaying.style.display = 'inline-block';
+                } else {
+                    nowPlaying.style.display = 'none';
                 }
             } catch (error) {
                 console.error('Error updating status:', error);
             }
         }
         
-        // Szolgáltatás indítása
+        // Rádiók betöltése
+        async function loadRadios() {
+            try {
+                const response = await fetch(`${API_BASE}/api/radios`);
+                const radios = await response.json();
+                
+                const container = document.getElementById('radioGrid');
+                
+                if (radios.length === 0) {
+                    container.innerHTML = '<div class="empty-state">Még nincsenek rádió állomások</div>';
+                    return;
+                }
+                
+                container.innerHTML = radios.map(r => `
+                    <div class="radio-card ${r.is_active ? 'active' : ''}" onclick="activateRadio(${r.id})">
+                        <div class="radio-name">${r.name}</div>
+                        <div class="radio-url">${r.stream_url}</div>
+                        ${r.is_azuracast ? '<span class="radio-badge badge-azuracast">🏠 AzuraCast</span>' : '<span class="radio-badge badge-online">🌐 Online</span>'}
+                        <div class="radio-actions" onclick="event.stopPropagation()">
+                            <button class="btn-primary btn-small" onclick="editRadio(${r.id})">✏️</button>
+                            ${!r.is_active ? `<button class="btn-danger btn-small" onclick="deleteRadio(${r.id})">🗑️</button>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading radios:', error);
+            }
+        }
+        
+        // Rádió aktiválása
+        async function activateRadio(id) {
+            try {
+                await fetch(`${API_BASE}/api/radios/${id}/activate`, { method: 'POST' });
+                await loadRadios();
+                await updateStatus();
+            } catch (error) {
+                alert('Hiba a rádió aktiválásakor: ' + error.message);
+            }
+        }
+        
+        // Rádió törlése
+        async function deleteRadio(id) {
+            if (!confirm('Biztosan törölni szeretnéd ezt a rádiót?')) return;
+            
+            try {
+                await fetch(`${API_BASE}/api/radios/${id}`, { method: 'DELETE' });
+                await loadRadios();
+            } catch (error) {
+                alert('Hiba a rádió törlésekor: ' + error.message);
+            }
+        }
+        
+        // Modal kezelés
+        function showAddRadioModal() {
+            document.getElementById('modalTitle').textContent = 'Új rádió hozzáadása';
+            document.getElementById('radioForm').reset();
+            document.getElementById('radioId').value = '';
+            document.getElementById('azuracastFields').style.display = 'none';
+            document.getElementById('radioModal').classList.add('show');
+        }
+        
+        async function editRadio(id) {
+            try {
+                const response = await fetch(`${API_BASE}/api/radios`);
+                const radios = await response.json();
+                const radio = radios.find(r => r.id === id);
+                
+                if (radio) {
+                    document.getElementById('modalTitle').textContent = 'Rádió szerkesztése';
+                    document.getElementById('radioId').value = radio.id;
+                    document.getElementById('radioName').value = radio.name;
+                    document.getElementById('radioUrl').value = radio.stream_url;
+                    document.getElementById('radioIsAzuracast').checked = radio.is_azuracast;
+                    document.getElementById('radioStationId').value = radio.azuracast_station_id || '';
+                    toggleAzuracastFields();
+                    document.getElementById('radioModal').classList.add('show');
+                }
+            } catch (error) {
+                alert('Hiba: ' + error.message);
+            }
+        }
+        
+        function closeRadioModal() {
+            document.getElementById('radioModal').classList.remove('show');
+        }
+        
+        function toggleAzuracastFields() {
+            const isAzura = document.getElementById('radioIsAzuracast').checked;
+            document.getElementById('azuracastFields').style.display = isAzura ? 'block' : 'none';
+        }
+        
+        // Rádió form submit
+        document.getElementById('radioForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const id = document.getElementById('radioId').value;
+            const data = {
+                name: document.getElementById('radioName').value,
+                stream_url: document.getElementById('radioUrl').value,
+                is_azuracast: document.getElementById('radioIsAzuracast').checked ? 1 : 0,
+                azuracast_station_id: document.getElementById('radioStationId').value
+            };
+            
+            try {
+                if (id) {
+                    await fetch(`${API_BASE}/api/radios/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                } else {
+                    await fetch(`${API_BASE}/api/radios`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                }
+                
+                closeRadioModal();
+                await loadRadios();
+            } catch (error) {
+                alert('Hiba: ' + error.message);
+            }
+        });
+        
+        // Szolgáltatás indítása/leállítása
         async function startService() {
             try {
                 await fetch(`${API_BASE}/api/service/start`, { method: 'POST' });
@@ -444,7 +902,6 @@
             }
         }
         
-        // Szolgáltatás leállítása
         async function stopService() {
             try {
                 await fetch(`${API_BASE}/api/service/stop`, { method: 'POST' });
@@ -452,6 +909,12 @@
             } catch (error) {
                 alert('Hiba a szolgáltatás leállításakor: ' + error.message);
             }
+        }
+        
+        // Nap tartomány formázása
+        function getDayRange(start, end) {
+            if (start === end) return DAYS[start];
+            return `${DAYS[start]} - ${DAYS[end]}`;
         }
         
         // Órarendek betöltése
@@ -463,12 +926,7 @@
                 const container = document.getElementById('schedulesList');
                 
                 if (schedules.length === 0) {
-                    container.innerHTML = `
-                        <div class="empty-state">
-                            <div style="font-size: 48px;">📅</div>
-                            <p>Még nincsenek beállított órarendek</p>
-                        </div>
-                    `;
+                    container.innerHTML = '<div class="empty-state">📅 Még nincsenek beállított órarendek</div>';
                     return;
                 }
                 
@@ -484,11 +942,10 @@
                         </div>
                         <div class="schedule-actions">
                             <label class="toggle-switch">
-                                <input type="checkbox" ${s.enabled ? 'checked' : ''} 
-                                       onchange="toggleSchedule(${s.id}, this.checked)">
+                                <input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="toggleSchedule(${s.id}, this.checked)">
                                 <span class="slider"></span>
                             </label>
-                            <button class="btn-danger" onclick="deleteSchedule(${s.id})">🗑️ Törlés</button>
+                            <button class="btn-danger btn-small" onclick="deleteSchedule(${s.id})">🗑️</button>
                         </div>
                     </div>
                 `).join('');
@@ -497,16 +954,15 @@
             }
         }
         
-        // Órarend hozzáadása
+        // Órarend form
         document.getElementById('scheduleForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const dayStart = parseInt(document.getElementById('dayStart').value);
             const dayEnd = parseInt(document.getElementById('dayEnd').value);
             
-            // Ellenőrzés: day_end >= day_start
             if (dayEnd < dayStart) {
-                alert('A vég napnak később vagy ugyanakkornak kell lennie, mint a kezdő nap!');
+                alert('A vég napnak később vagy ugyanakkornak kell lennie!');
                 return;
             }
             
@@ -525,15 +981,13 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
-                
                 e.target.reset();
                 await loadSchedules();
             } catch (error) {
-                alert('Hiba az órarend hozzáadásakor: ' + error.message);
+                alert('Hiba: ' + error.message);
             }
         });
         
-        // Órarend engedélyezése/letiltása
         async function toggleSchedule(id, enabled) {
             try {
                 const response = await fetch(`${API_BASE}/api/schedules/${id}`);
@@ -543,44 +997,34 @@
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        name: schedule.name,
-                        day_start: schedule.day_start,
-                        day_end: schedule.day_end,
-                        start_time: schedule.start_time,
-                        stop_time: schedule.stop_time,
+                        ...schedule,
                         enabled: enabled ? 1 : 0
                     })
                 });
-                
                 await loadSchedules();
             } catch (error) {
-                alert('Hiba az órarend módosításakor: ' + error.message);
+                alert('Hiba: ' + error.message);
             }
         }
         
-        // Órarend törlése
         async function deleteSchedule(id) {
-            if (!confirm('Biztosan törölni szeretnéd ezt az órarendet?')) {
-                return;
-            }
+            if (!confirm('Biztosan törölni szeretnéd?')) return;
             
             try {
                 await fetch(`${API_BASE}/api/schedules/${id}`, { method: 'DELETE' });
                 await loadSchedules();
             } catch (error) {
-                alert('Hiba az órarend törlésekor: ' + error.message);
+                alert('Hiba: ' + error.message);
             }
         }
         
-        // Beállítások betöltése
+        // Beállítások
         async function loadSettings() {
             try {
                 const response = await fetch(`${API_BASE}/api/settings`);
                 const settings = await response.json();
                 
-                document.getElementById('streamUrl').value = settings.stream_url || '';
                 document.getElementById('azuracastApiUrl').value = settings.azuracast_api_url || '';
-                document.getElementById('azuracastStationId').value = settings.azuracast_station_id || '';
                 document.getElementById('azuracastApiKey').value = settings.azuracast_api_key || '';
                 document.getElementById('controlAzuracast').checked = settings.control_azuracast === '1';
             } catch (error) {
@@ -588,14 +1032,11 @@
             }
         }
         
-        // Beállítások mentése
         document.getElementById('settingsForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const data = {
-                stream_url: document.getElementById('streamUrl').value,
                 azuracast_api_url: document.getElementById('azuracastApiUrl').value,
-                azuracast_station_id: document.getElementById('azuracastStationId').value,
                 azuracast_api_key: document.getElementById('azuracastApiKey').value,
                 control_azuracast: document.getElementById('controlAzuracast').checked ? '1' : '0'
             };
@@ -606,38 +1047,28 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
-                
-                alert('✅ Beállítások mentve! Ha a stream URL változott és a szolgáltatás fut, automatikusan újraindul.');
+                alert('✅ Beállítások mentve!');
             } catch (error) {
-                alert('Hiba a beállítások mentésekor: ' + error.message);
+                alert('Hiba: ' + error.message);
             }
         });
         
-        // AzuraCast API teszt
         async function testAzuraCast() {
             try {
-                const response = await fetch(`${API_BASE}/api/azuracast/test`, {
-                    method: 'POST'
-                });
-                
+                const response = await fetch(`${API_BASE}/api/azuracast/test`, { method: 'POST' });
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(`✅ API teszt sikeres!\n\nÁllomás: ${result.station_name}\nBackend fut: ${result.backend_running ? 'Igen' : 'Nem'}\nNyilvános: ${result.is_public ? 'Igen' : 'Nem'}`);
+                    alert(`✅ API teszt sikeres!\n\nÁllomás: ${result.station_name}`);
                 } else {
                     alert(`❌ API teszt sikertelen!\n\n${result.message}`);
                 }
             } catch (error) {
-                alert(`❌ API teszt hiba:\n\n${error.message}`);
+                alert(`❌ Hiba: ${error.message}`);
             }
         }
         
-        // Inicializálás
-        updateStatus();
-        loadSchedules();
-        loadSettings();
-        
-        // Nap választó szinkronizálás (ha ugyanaz van választva mindkettőben)
+        // Nap választó szinkronizálás
         document.getElementById('dayStart').addEventListener('change', function() {
             const dayEnd = document.getElementById('dayEnd');
             if (parseInt(dayEnd.value) < parseInt(this.value)) {
@@ -645,7 +1076,176 @@
             }
         });
         
-        // Státusz automatikus frissítése 10 másodpercenként
+        // === HANGFÁJL FUNKCIÓK ===
+        
+        // Fájlméret formázás
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+        
+        // Hangfájlok listázása
+        async function loadAudioFiles() {
+            try {
+                const response = await fetch(`${API_BASE}/api/audio/files`);
+                const files = await response.json();
+                
+                const container = document.getElementById('audioFilesList');
+                
+                if (files.length === 0) {
+                    container.innerHTML = '<div class="empty-state">🎵 Még nincsenek feltöltött hangfájlok</div>';
+                    return;
+                }
+                
+                container.innerHTML = files.map(f => `
+                    <div class="audio-item">
+                        <div class="audio-info">
+                            <div class="audio-name">🎵 ${f.filename}</div>
+                            <div class="audio-meta">${formatFileSize(f.size)} • ${new Date(f.modified).toLocaleString('hu-HU')}</div>
+                        </div>
+                        <div class="audio-actions">
+                            <button class="btn-preview btn-small" onclick="previewAudio('${f.filename}')">🔊 Előnézet</button>
+                            <button class="btn-play btn-small" onclick="playAudioFile('${f.filename}')">▶ Lejátszás</button>
+                            <button class="btn-danger btn-small" onclick="deleteAudioFile('${f.filename}')">🗑️</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading audio files:', error);
+            }
+        }
+        
+        // Hangfájl feltöltése
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('audioFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Válassz ki egy fájlt!');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            const progressDiv = document.getElementById('uploadProgress');
+            const progressBar = document.getElementById('progressBar');
+            progressDiv.style.display = 'block';
+            progressBar.style.width = '0%';
+            
+            try {
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percent = (e.loaded / e.total) * 100;
+                        progressBar.style.width = percent + '%';
+                    }
+                });
+                
+                xhr.onload = async () => {
+                    progressDiv.style.display = 'none';
+                    if (xhr.status === 201) {
+                        const result = JSON.parse(xhr.responseText);
+                        alert(`✅ ${result.message}`);
+                        fileInput.value = '';
+                        await loadAudioFiles();
+                    } else {
+                        const error = JSON.parse(xhr.responseText);
+                        alert(`❌ Hiba: ${error.error}`);
+                    }
+                };
+                
+                xhr.onerror = () => {
+                    progressDiv.style.display = 'none';
+                    alert('❌ Feltöltési hiba');
+                };
+                
+                xhr.open('POST', `${API_BASE}/api/audio/upload`);
+                xhr.send(formData);
+            } catch (error) {
+                progressDiv.style.display = 'none';
+                alert('Hiba: ' + error.message);
+            }
+        });
+        
+        // Előnézet (böngészőben)
+        let previewAudioElement = null;
+        function previewAudio(filename) {
+            if (previewAudioElement) {
+                previewAudioElement.pause();
+                previewAudioElement = null;
+            }
+            previewAudioElement = new Audio(`${API_BASE}/audio_files/${encodeURIComponent(filename)}`);
+            previewAudioElement.play();
+        }
+        
+        // Lejátszás a Raspberry Pi-n
+        async function playAudioFile(filename) {
+            if (!confirm(`Lejátszod a "${filename}" fájlt?\n\nEz leállítja az aktuális rádió adást!`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/audio/play/${encodeURIComponent(filename)}`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ ${result.message}`);
+                    await updateStatus();
+                } else {
+                    alert(`❌ Hiba: ${result.error}`);
+                }
+            } catch (error) {
+                alert('Hiba: ' + error.message);
+            }
+        }
+        
+        // Lejátszás leállítása
+        async function stopAudio() {
+            // Böngészőben lévő előnézet leállítása
+            if (previewAudioElement) {
+                previewAudioElement.pause();
+                previewAudioElement = null;
+            }
+            
+            try {
+                await fetch(`${API_BASE}/api/audio/stop`, { method: 'POST' });
+                await updateStatus();
+            } catch (error) {
+                console.error('Error stopping audio:', error);
+            }
+        }
+        
+        // Hangfájl törlése
+        async function deleteAudioFile(filename) {
+            if (!confirm(`Biztosan törlöd a "${filename}" fájlt?`)) {
+                return;
+            }
+            
+            try {
+                await fetch(`${API_BASE}/api/audio/files/${encodeURIComponent(filename)}`, {
+                    method: 'DELETE'
+                });
+                await loadAudioFiles();
+            } catch (error) {
+                alert('Hiba: ' + error.message);
+            }
+        }
+        
+        // Inicializálás
+        updateStatus();
+        loadRadios();
+        loadSchedules();
+        loadSettings();
+        loadAudioFiles();
+        
+        // Automatikus frissítés
         setInterval(updateStatus, 10000);
     </script>
 </body>
