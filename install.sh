@@ -18,6 +18,7 @@ fi
 # Változók
 INSTALL_DIR="/opt/radio_scheduler"
 SERVICE_FILE="/etc/systemd/system/radio-scheduler.service"
+PLAYOUT_SERVICE_FILE="/etc/systemd/system/azuracast-playout.service"
 CURRENT_DIR="$(pwd)"
 
 echo "Telepítési mappa: $INSTALL_DIR"
@@ -28,13 +29,14 @@ echo "[1/5] Python függőségek telepítése..."
 pip3 install -r requirements.txt
 
 # 2. Fájlok másolása
-echo "[2/5] Fájlok másolása..."
+echo "[2/6] Fájlok másolása..."
 mkdir -p "$INSTALL_DIR"
 cp -r "$CURRENT_DIR"/* "$INSTALL_DIR/"
 chmod +x "$INSTALL_DIR/start.sh"
+chmod +x "$INSTALL_DIR/scripts/audio_fade.sh" 2>/dev/null || true
 
 # 3. Systemd service fájl létrehozása
-echo "[3/5] Systemd service beállítása..."
+echo "[3/6] Systemd service beállítása..."
 cat > "$SERVICE_FILE" << 'EOF'
 [Unit]
 Description=Radio Scheduler Web Service
@@ -56,13 +58,23 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
+# AzuraCast playout service telepítése (mpv + hangerő fade in/out)
+if [ -f "$INSTALL_DIR/azuracast-playout.service" ]; then
+    cp "$INSTALL_DIR/azuracast-playout.service" "$PLAYOUT_SERVICE_FILE"
+fi
+
 # 4. Systemd újratöltése
-echo "[4/5] Systemd daemon újratöltése..."
+echo "[4/6] Systemd daemon újratöltése..."
 systemctl daemon-reload
 
 # 5. Szolgáltatás engedélyezése és indítása
-echo "[5/5] Szolgáltatás indítása..."
+echo "[5/6] Szolgáltatás engedélyezése..."
 systemctl enable radio-scheduler
+
+# Playout szolgáltatás legyen ismert a rendszernek, de ne induljon automatikusan bootkor.
+systemctl disable azuracast-playout >/dev/null 2>&1 || true
+
+echo "[6/6] Szolgáltatás indítása..."
 systemctl restart radio-scheduler
 
 echo ""

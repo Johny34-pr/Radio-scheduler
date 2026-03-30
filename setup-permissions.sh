@@ -11,6 +11,7 @@ chmod +x test.sh
 chmod +x show-config.sh
 chmod +x open-firewall.sh
 chmod +x migrate-db.sh
+chmod +x scripts/audio_fade.sh 2>/dev/null || true
 
 echo "✓ Kész!"
 echo ""

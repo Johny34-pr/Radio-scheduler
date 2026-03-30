@@ -1,0 +1,26 @@
+[Unit]
+Description=AzuraCast Payout Stream Player
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Environment="STREAM_URL=http://127.0.0.1:8000/radio.mp3"
+Environment="AUDIO_DEVICE=alsa/plughw:0,0"
+Environment="AUDIO_CARD=0"
+Environment="TARGET_VOLUME=85"
+Environment="FADE_SECONDS=2"
+Environment="AUDIO_MIXER_CONTROL=Master"
+ExecStartPre=/opt/radio_scheduler/scripts/audio_fade.sh set0 ${AUDIO_CARD} ${TARGET_VOLUME} ${FADE_SECONDS}
+ExecStart=/bin/bash -lc '/usr/bin/mpv --no-video --audio-device="${AUDIO_DEVICE}" "${STREAM_URL}" || /usr/bin/mpv --no-video "${STREAM_URL}"'
+ExecStartPost=/opt/radio_scheduler/scripts/audio_fade.sh up ${AUDIO_CARD} ${TARGET_VOLUME} ${FADE_SECONDS}
+ExecStop=/opt/radio_scheduler/scripts/audio_fade.sh down ${AUDIO_CARD} ${TARGET_VOLUME} ${FADE_SECONDS}
+KillSignal=SIGTERM
+KillMode=control-group
+TimeoutStopSec=8
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

@@ -71,7 +71,7 @@ def init_db():
     
     # Alapértelmezett beállítások
     default_settings = {
-        'azuracast_api_url': 'http://10.204.131.131',
+        'azuracast_api_url': 'http://127.0.0.1',
         'azuracast_api_key': '',
         'control_azuracast': '0'  # 0 = csak mpv, 1 = mpv + AzuraCast szüneteltetés/folytatás
     }
@@ -83,7 +83,7 @@ def init_db():
     existing_radios = c.execute('SELECT COUNT(*) FROM radios').fetchone()[0]
     if existing_radios == 0:
         default_radios = [
-            ('Helyi AzuraCast', 'http://10.204.131.131:8000/radio.mp3', 1, '1', 1),
+            ('Helyi AzuraCast', 'http://127.0.0.1:8000/radio.mp3', 1, '1', 1),
             ('Retro Rádió', 'https://icast.connectmedia.hu/4738/live.mp3', 0, '', 0),
             ('Rádió1', 'http://icast.connectmedia.hu/5201/live.mp3', 0, '', 0),
             ('Christmas FM', 'https://stream1.christmasfm.hu/live.mp3', 0, '', 0),
@@ -160,6 +160,62 @@ def get_active_radio():
     conn.close()
     return dict(radio) if radio else None
 
+def with_privileges(cmd):
+    """Parancs futtatása rootként vagy sudo-val"""
+    if os.geteuid() == 0:
+        return cmd
+    return ['sudo'] + cmd
+
+def systemd_unit_exists(service_name):
+    """Létezik-e a systemd unit"""
+    try:
+        result = subprocess.run(
+            with_privileges(['systemctl', 'cat', service_name]),
+            capture_output=True,
+            text=True
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+def azuracast_api_control(action, station_id):
+    """AzuraCast vezérlés API-n keresztül (fallback)"""
+    api_url = get_setting('azuracast_api_url', '').rstrip('/')
+    api_key = get_setting('azuracast_api_key', '')
+    if not api_url or not api_key:
+        return False
+
+    headers = {'X-API-Key': api_key}
+
+    if action == 'start':
+        urls = [
+            f"{api_url}/api/station/{station_id}/restart",
+            f"{api_url}/api/station/{station_id}/backend/start",
+            f"{api_url}/api/station/{station_id}/frontend/start",
+        ]
+    else:
+        urls = [
+            f"{api_url}/api/station/{station_id}/frontend/stop",
+            f"{api_url}/api/station/{station_id}/backend/stop",
+        ]
+
+    any_success = False
+    last_error = None
+    for url in urls:
+        try:
+            response = requests.post(url, headers=headers, timeout=15)
+            if 200 <= response.status_code < 300:
+                any_success = True
+        except Exception as e:
+            last_error = e
+
+    if any_success:
+        return True
+
+    if last_error is not None:
+        print(f"[{datetime.now()}] AzuraCast API control error: {type(last_error).__name__}: {last_error}")
+    return False
+
 def azuracast_control(action):
     """AzuraCast backend és frontend vezérlése supervisorctl-lel"""
     control_enabled = get_setting('control_azuracast', '0') == '1'
@@ -179,39 +235,55 @@ def azuracast_control(action):
     station_id = active_radio.get('azuracast_station_id', '1')
     
     try:
+        def run_supervisor(supervisor_action, target):
+            result = subprocess.run(
+                with_privileges(['docker', 'exec', 'azuracast', 'supervisorctl', supervisor_action, target]),
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if result.returncode != 0:
+                print(f"[{datetime.now()}] Supervisor command failed: action={supervisor_action}, target={target}, rc={result.returncode}, stderr={result.stderr.strip()}")
+                return False
+            return True
+
         if action == 'start':
             # Backend indítása
-            subprocess.run(['sudo', 'docker', 'exec', 'azuracast', 'supervisorctl', 'start', 
-                f'station_{station_id}:station_{station_id}_backend'], 
-                capture_output=True, text=True, timeout=30)
+            backend_ok = run_supervisor('start', f'station_{station_id}:station_{station_id}_backend')
             print(f"[{datetime.now()}] Backend started")
             
             time_module.sleep(2)
             
             # Frontend indítása
-            subprocess.run(['sudo', 'docker', 'exec', 'azuracast', 'supervisorctl', 'start', 
-                f'station_{station_id}:station_{station_id}_frontend'], 
-                capture_output=True, text=True, timeout=30)
+            frontend_ok = run_supervisor('start', f'station_{station_id}:station_{station_id}_frontend')
             print(f"[{datetime.now()}] Frontend started")
             
-            print(f"[{datetime.now()}] ✅ AzuraCast station started")
-            return True
+            if backend_ok and frontend_ok:
+                print(f"[{datetime.now()}] ✅ AzuraCast station started")
+                return True
+
+            # Fallback API vezérlésre
+            api_ok = azuracast_api_control('start', station_id)
+            print(f"[{datetime.now()}] AzuraCast start fallback API result: {api_ok}")
+            return api_ok
         
         elif action == 'stop':
             # Frontend leállítása
-            subprocess.run(['sudo', 'docker', 'exec', 'azuracast', 'supervisorctl', 'stop', 
-                f'station_{station_id}:station_{station_id}_frontend'], 
-                capture_output=True, text=True, timeout=30)
+            frontend_ok = run_supervisor('stop', f'station_{station_id}:station_{station_id}_frontend')
             print(f"[{datetime.now()}] Frontend stopped")
             
             # Backend leállítása
-            subprocess.run(['sudo', 'docker', 'exec', 'azuracast', 'supervisorctl', 'stop', 
-                f'station_{station_id}:station_{station_id}_backend'], 
-                capture_output=True, text=True, timeout=30)
+            backend_ok = run_supervisor('stop', f'station_{station_id}:station_{station_id}_backend')
             print(f"[{datetime.now()}] Backend stopped")
             
-            print(f"[{datetime.now()}] ✅ AzuraCast station stopped")
-            return True
+            if frontend_ok and backend_ok:
+                print(f"[{datetime.now()}] ✅ AzuraCast station stopped")
+                return True
+
+            # Fallback API vezérlésre
+            api_ok = azuracast_api_control('stop', station_id)
+            print(f"[{datetime.now()}] AzuraCast stop fallback API result: {api_ok}")
+            return api_ok
     
     except Exception as e:
         print(f"[{datetime.now()}] ❌ AzuraCast control error: {type(e).__name__}: {e}")
@@ -223,24 +295,23 @@ def systemd_start():
     """Systemd szolgáltatás indítása"""
     try:
         # AzuraCast backend indítása (ha engedélyezve)
-        azuracast_control('start')
+        azura_ok = azuracast_control('start')
+
+        if not systemd_unit_exists(SYSTEMD_SERVICE):
+            print(f"[{datetime.now()}] Systemd unit not found ({SYSTEMD_SERVICE}), AzuraCast-only start mode")
+            return azura_ok
         
         # Service environment frissítése az aktuális stream URL-lel
         update_service_environment()
         
-        # Sudo használata ha nem root user
-        cmd = ['systemctl', 'start', SYSTEMD_SERVICE]
-        if os.geteuid() != 0:
-            cmd = ['sudo'] + cmd
-            
         result = subprocess.run(
-            cmd,
+            with_privileges(['systemctl', 'start', SYSTEMD_SERVICE]),
             capture_output=True,
             text=True,
             check=True
         )
         print(f"[{datetime.now()}] Service started: {SYSTEMD_SERVICE}")
-        return True
+        return azura_ok
     except subprocess.CalledProcessError as e:
         print(f"[{datetime.now()}] Error starting service: {e.stderr}")
         return False
@@ -251,23 +322,21 @@ def systemd_start():
 def systemd_stop():
     """Systemd szolgáltatás leállítása"""
     try:
-        # Sudo használata ha nem root user
-        cmd = ['systemctl', 'stop', SYSTEMD_SERVICE]
-        if os.geteuid() != 0:
-            cmd = ['sudo'] + cmd
-            
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        print(f"[{datetime.now()}] Service stopped: {SYSTEMD_SERVICE}")
+        if systemd_unit_exists(SYSTEMD_SERVICE):
+            result = subprocess.run(
+                with_privileges(['systemctl', 'stop', SYSTEMD_SERVICE]),
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            print(f"[{datetime.now()}] Service stopped: {SYSTEMD_SERVICE}")
+        else:
+            print(f"[{datetime.now()}] Systemd unit not found ({SYSTEMD_SERVICE}), AzuraCast-only stop mode")
         
         # AzuraCast backend leállítása (ha engedélyezve)
-        azuracast_control('stop')
+        azura_ok = azuracast_control('stop')
         
-        return True
+        return azura_ok
     except subprocess.CalledProcessError as e:
         print(f"[{datetime.now()}] Error stopping service: {e.stderr}")
         return False
@@ -287,11 +356,7 @@ def update_service_environment():
         service_file = f'/etc/systemd/system/{SYSTEMD_SERVICE}'
         
         # Ellenőrizzük, hogy a service file létezik-e
-        check_cmd = ['test', '-f', service_file]
-        if os.geteuid() != 0:
-            check_cmd = ['sudo'] + check_cmd
-        
-        result = subprocess.run(check_cmd, capture_output=True)
+        result = subprocess.run(with_privileges(['test', '-f', service_file]), capture_output=True)
         if result.returncode != 0:
             print(f"[{datetime.now()}] Service file not found, skipping environment update")
             return
@@ -306,24 +371,79 @@ Environment="STREAM_URL={stream_url}"
 """
         
         # Könyvtár létrehozása és fájl írása
-        cmd = f'mkdir -p {override_dir} && echo "{override_content}" | sudo tee {override_file} > /dev/null && sudo systemctl daemon-reload'
-        
-        subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+        if os.geteuid() == 0:
+            os.makedirs(override_dir, exist_ok=True)
+            with open(override_file, 'w', encoding='utf-8') as f:
+                f.write(override_content)
+            subprocess.run(['systemctl', 'daemon-reload'], check=True, capture_output=True, text=True)
+        else:
+            mkdir_cmd = with_privileges(['mkdir', '-p', override_dir])
+            subprocess.run(mkdir_cmd, check=True, capture_output=True, text=True)
+
+            write_cmd = f'echo "{override_content}" | tee {override_file} > /dev/null'
+            subprocess.run(with_privileges(['bash', '-lc', write_cmd]), shell=False, check=True, capture_output=True, text=True)
+            subprocess.run(with_privileges(['systemctl', 'daemon-reload']), check=True, capture_output=True, text=True)
+
         print(f"[{datetime.now()}] Service environment updated: STREAM_URL={stream_url}")
         
     except Exception as e:
         print(f"[{datetime.now()}] Error updating service environment: {e}")
 
+def azuracast_station_status():
+    """AzuraCast station állapot lekérdezése supervisorctl-ből"""
+    try:
+        control_enabled = get_setting('control_azuracast', '0') == '1'
+        active_radio = get_active_radio()
+
+        if not control_enabled or not active_radio or not active_radio.get('is_azuracast'):
+            return 'unknown'
+
+        station_id = active_radio.get('azuracast_station_id', '1') or '1'
+        result = subprocess.run(
+            with_privileges([
+                'docker', 'exec', 'azuracast', 'supervisorctl', 'status',
+                f'station_{station_id}:station_{station_id}_backend',
+                f'station_{station_id}:station_{station_id}_frontend'
+            ]),
+            capture_output=True,
+            text=True,
+            timeout=20
+        )
+
+        # supervisorctl gyakran non-zero kóddal tér vissza STOPPED állapot esetén,
+        # ezért a státuszt mindig a szöveges kimenetből olvassuk ki.
+        output = f"{result.stdout or ''}\n{result.stderr or ''}".upper()
+        has_running = 'RUNNING' in output
+        has_stopped_like = any(x in output for x in ['STOPPED', 'EXITED', 'FATAL', 'BACKOFF'])
+        has_transitional = any(x in output for x in ['STARTING', 'STOPPING'])
+
+        if 'NO SUCH PROCESS' in output or 'ERROR' in output:
+            return 'unknown'
+
+        if has_running:
+            return 'active'
+        if has_transitional:
+            return 'active'
+        if has_stopped_like:
+            return 'inactive'
+        return 'unknown'
+    except Exception:
+        return 'unknown'
+
 def systemd_status():
     """Systemd szolgáltatás állapotának lekérdezése"""
     try:
-        # Sudo használata ha nem root user
-        cmd = ['systemctl', 'is-active', SYSTEMD_SERVICE]
-        if os.geteuid() != 0:
-            cmd = ['sudo'] + cmd
+        azura_state = azuracast_station_status()
+
+        # Ha AzuraCast station állapot biztosan ismert, azt tekintjük forrásigazságnak.
+        if azura_state in ['active', 'inactive']:
+            return azura_state
+
+        if not systemd_unit_exists(SYSTEMD_SERVICE):
+            return azura_state
             
         result = subprocess.run(
-            cmd,
+            with_privileges(['systemctl', 'is-active', SYSTEMD_SERVICE]),
             capture_output=True,
             text=True
         )
@@ -335,9 +455,9 @@ def systemd_status():
         elif status in ['inactive', 'deactivating', 'failed']:
             return 'inactive'
         else:
-            return status
+            return azura_state
     except (FileNotFoundError, AttributeError):
-        return "unknown"
+        return azuracast_station_status()
 
 # API endpointok
 @app.route('/')
@@ -680,7 +800,7 @@ def play_audio_file(filename):
             time_module.sleep(0.5)
         
         # Hangfájl lejátszása mpv-vel (háttérben, amíg le nem játszódik)
-        cmd = ['mpv', '--no-video', '--audio-device=alsa/plughw:1,0', filepath]
+        cmd = ['mpv', '--no-video', '--audio-device=alsa/plughw:0,0', filepath]
         subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
         print(f"[{datetime.now()}] Playing audio file: {filename}")
@@ -743,6 +863,37 @@ def setup_scheduler():
 def reload_scheduler():
     """Időzítő újratöltése"""
     setup_scheduler()
+    reconcile_schedule_state()
+
+def reconcile_schedule_state():
+    """Újraindítás után is érvényesítjük az aktuális órarend állapotot."""
+    try:
+        now = datetime.now()
+        today = now.weekday()  # 0=Hétfő
+        now_hm = now.strftime('%H:%M')
+
+        conn = get_db()
+        active_now = conn.execute('''
+            SELECT 1
+            FROM schedules
+            WHERE enabled = 1
+              AND day_start <= ?
+              AND day_end >= ?
+              AND start_time <= ?
+              AND stop_time > ?
+            LIMIT 1
+        ''', (today, today, now_hm, now_hm)).fetchone() is not None
+        conn.close()
+
+        current_state = systemd_status()
+        if active_now and current_state != 'active':
+            print(f"[{datetime.now()}] Reconcile: should be active now, starting service")
+            systemd_start()
+        elif (not active_now) and current_state == 'active':
+            print(f"[{datetime.now()}] Reconcile: should be inactive now, stopping service")
+            systemd_stop()
+    except Exception as e:
+        print(f"[{datetime.now()}] Reconcile error: {type(e).__name__}: {e}")
 
 def run_scheduler():
     """Időzítő futtatása külön szálon"""
@@ -753,6 +904,7 @@ def run_scheduler():
 if __name__ == '__main__':
     init_db()
     setup_scheduler()
+    reconcile_schedule_state()
     
     # Scheduler indítása külön szálon
     scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
