@@ -13,7 +13,7 @@ Environment="TARGET_VOLUME=85"
 Environment="FADE_SECONDS=2"
 Environment="AUDIO_MIXER_CONTROL=Master"
 ExecStartPre=/opt/radio_scheduler/scripts/audio_fade.sh set0 ${AUDIO_CARD} ${TARGET_VOLUME} ${FADE_SECONDS}
-ExecStart=/bin/bash -lc '/usr/bin/mpv --no-video --cache=yes --cache-secs=2 --network-timeout=5 --stream-lavf-o=reconnect=1,reconnect_streamed=1,reconnect_delay_max=2 --audio-device="${AUDIO_DEVICE}" "${STREAM_URL}" || /usr/bin/mpv --no-video --cache=yes --cache-secs=2 --network-timeout=5 --stream-lavf-o=reconnect=1,reconnect_streamed=1,reconnect_delay_max=2 "${STREAM_URL}"'
+ExecStart=/bin/bash -lc '/usr/bin/mpv --no-video --cache=yes --cache-secs=1 --cache-pause-initial=no --cache-pause=no --demuxer-lavf-analyzeduration=0.1 --demuxer-lavf-probesize=32768 --demuxer-lavf-o=fflags=+nobuffer --audio-buffer=0.2 --network-timeout=5 --stream-lavf-o=reconnect=1,reconnect_streamed=1,reconnect_delay_max=2 --audio-device="${AUDIO_DEVICE}" "${STREAM_URL}" || /usr/bin/mpv --no-video --cache=yes --cache-secs=1 --cache-pause-initial=no --cache-pause=no --demuxer-lavf-analyzeduration=0.1 --demuxer-lavf-probesize=32768 --demuxer-lavf-o=fflags=+nobuffer --audio-buffer=0.2 --network-timeout=5 --stream-lavf-o=reconnect=1,reconnect_streamed=1,reconnect_delay_max=2 "${STREAM_URL}"'
 ExecStartPost=/opt/radio_scheduler/scripts/audio_fade.sh up ${AUDIO_CARD} ${TARGET_VOLUME} ${FADE_SECONDS}
 ExecStop=/opt/radio_scheduler/scripts/audio_fade.sh down ${AUDIO_CARD} ${TARGET_VOLUME} ${FADE_SECONDS}
 KillSignal=SIGTERM
