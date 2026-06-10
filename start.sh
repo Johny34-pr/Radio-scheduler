@@ -16,16 +16,23 @@ echo "Port: $PORT"
 echo "Munkamappa: $(pwd)"
 echo "==================================="
 
-# Python környezet ellenőrzése
-if ! command -v python3 &> /dev/null; then
+# Python környezet ellenőrzése — venv használata ha elérhető
+SCRIPT_DIR="$(dirname "$0")"
+if [ -f "$SCRIPT_DIR/venv/bin/python" ]; then
+    PYTHON="$SCRIPT_DIR/venv/bin/python"
+    PIP="$SCRIPT_DIR/venv/bin/pip"
+elif command -v python3 &> /dev/null; then
+    PYTHON="python3"
+    PIP="pip3"
+else
     echo "HIBA: python3 nem található!"
     exit 1
 fi
 
 # Függőségek ellenőrzése
 echo "Függőségek ellenőrzése..."
-pip3 install -q -r requirements.txt
+"$PIP" install -q -r requirements.txt
 
 # Alkalmazás indítása
 echo "Alkalmazás indítása..."
-python3 app.py
+"$PYTHON" app.py
