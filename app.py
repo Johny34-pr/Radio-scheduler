@@ -291,6 +291,38 @@ def azuracast_control(action):
     
     return True
 
+def wait_for_stream(url, timeout=20, interval=0.5):
+    """Megvárja, amíg a stream URL ténylegesen kiszolgál adatot.
+
+    Az AzuraCast station elindítása után a stream (Icecast/Liquidsoap) nem
+    azonnal él, ezért az mpv hosszan próbálkozhat a csatlakozással. Itt addig
+    pollozunk, amíg a stream válaszol és audio adatot kezd küldeni, így az mpv
+    már egy működő streamhez csatlakozik.
+    """
+    if not url:
+        return False
+
+    deadline = time_module.monotonic() + timeout
+    while time_module.monotonic() < deadline:
+        try:
+            # stream=True: nem töltjük le a teljes (végtelen) streamet, csak
+            # ellenőrizzük, hogy elindul-e az adatfolyam.
+            response = requests.get(url, stream=True, timeout=3)
+            content_type = response.headers.get('Content-Type', '').lower()
+            if 200 <= response.status_code < 300 and ('audio' in content_type or 'mpeg' in content_type or 'ogg' in content_type or 'octet-stream' in content_type):
+                # Próbálunk olvasni egy kevés adatot, hogy biztosan él a stream.
+                for _ in response.iter_content(chunk_size=1024):
+                    response.close()
+                    print(f"[{datetime.now()}] Stream ready: {url}")
+                    return True
+            response.close()
+        except Exception:
+            pass
+        time_module.sleep(interval)
+
+    print(f"[{datetime.now()}] Stream not ready after {timeout}s, starting anyway: {url}")
+    return False
+
 def systemd_start():
     """Systemd szolgáltatás indítása"""
     try:
@@ -303,6 +335,12 @@ def systemd_start():
         
         # Service environment frissítése az aktuális stream URL-lel
         update_service_environment()
+
+        # Megvárjuk, hogy a stream ténylegesen éljen, mielőtt az mpv elindul.
+        # Így elkerüljük a hosszú csatlakozási késleltetést.
+        active_radio = get_active_radio()
+        if active_radio and active_radio.get('stream_url'):
+            wait_for_stream(active_radio['stream_url'], timeout=20)
         
         result = subprocess.run(
             with_privileges(['systemctl', 'start', SYSTEMD_SERVICE]),
